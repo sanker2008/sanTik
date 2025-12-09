@@ -352,15 +352,21 @@
                 <!-- 有水印视频 -->
                 <div class="video-container" id="watermarkedContainer">
                     <h3 class="video-title watermarked">有水印视频</h3>
-                    <video id="watermarkedVideo" class="video-player" controls></video>
+                    <video id="watermarkedVideo" class="video-player" controls preload="none"></video>
                     <div id="watermarkedLoading" class="loading-overlay hidden"><div class="loader"></div><span>视频加载中</span></div>
+                    <div style="margin-top:12px;">
+                        <button id="playWatermarkedBtn" class="btn">播放有水印视频</button>
+                    </div>
                 </div>
                 
                 <!-- 无水印视频 -->
                 <div class="video-container" id="noWatermarkContainer">
                     <h3 class="video-title no-watermark">无水印视频</h3>
-                    <video id="noWatermarkVideo" class="video-player" controls autoplay></video>
+                    <video id="noWatermarkVideo" class="video-player" controls preload="none"></video>
                     <div id="noWatermarkLoading" class="loading-overlay hidden"><div class="loader"></div><span>视频加载中</span></div>
+                    <div style="margin-top:12px;">
+                        <button id="playNoWatermarkBtn" class="btn">播放无水印视频</button>
+                    </div>
                 </div>
             </div>
             
@@ -413,6 +419,8 @@
             const noWatermarkLoading = document.getElementById('noWatermarkLoading');
             const downloadWatermarkedBtn = document.getElementById('downloadWatermarkedBtn');
             const downloadNoWatermarkBtn = document.getElementById('downloadNoWatermarkBtn');
+            const playWatermarkedBtn = document.getElementById('playWatermarkedBtn');
+            const playNoWatermarkBtn = document.getElementById('playNoWatermarkBtn');
             const submitBtn = document.getElementById('submitBtn');
 
             console.log('用户输入:', inputText);
@@ -478,21 +486,25 @@
                     // 设置有水印视频 - 优先使用流式代理URL，其次是本地URL
                     console.log('\n=== 处理有水印视频 ===');
                     const watermarkedUrl = result.data.proxy?.watermarked || result.data.local?.watermarked || result.data.original?.watermarked;
-                    
+                     
                     if (watermarkedUrl) {
-                        console.log('✅ 设置有水印视频URL:', watermarkedUrl);
-                        watermarkedLoading.classList.remove('hidden');
-                        watermarkedVideo.src = watermarkedUrl;
+                        console.log('✅ 有水印视频URL可用（点击播放后再加载）:', watermarkedUrl);
                         downloadWatermarkedBtn.href = watermarkedUrl;
                         downloadWatermarkedBtn.style.display = 'inline-block';
-                        watermarkedVideo.onloadeddata = () => { watermarkedLoading.classList.add('hidden'); };
-                        watermarkedVideo.oncanplaythrough = () => { watermarkedLoading.classList.add('hidden'); };
-                        watermarkedVideo.onerror = () => { watermarkedLoading.classList.add('hidden'); };
+                        playWatermarkedBtn.style.display = 'inline-block';
                         watermarkedContainer.style.display = '';
+                        playWatermarkedBtn.onclick = () => {
+                            watermarkedLoading.classList.remove('hidden');
+                            watermarkedVideo.src = watermarkedUrl;
+                            watermarkedVideo.onloadeddata = () => { watermarkedLoading.classList.add('hidden'); };
+                            watermarkedVideo.oncanplaythrough = () => { watermarkedLoading.classList.add('hidden'); };
+                            watermarkedVideo.onerror = () => { watermarkedLoading.classList.add('hidden'); };
+                        };
                     } else {
                         console.log('⚠️  没有获取到有水印视频');
                         watermarkedVideo.src = '';
                         downloadWatermarkedBtn.style.display = 'none';
+                        playWatermarkedBtn.style.display = 'none';
                         watermarkedLoading.classList.add('hidden');
                         watermarkedContainer.style.display = 'none';
                     }
@@ -500,21 +512,25 @@
                     // 设置无水印视频 - 优先使用流式代理URL，其次是本地URL
                     console.log('\n=== 处理无水印视频 ===');
                     const noWatermarkUrl = result.data.proxy?.noWatermark || result.data.local?.noWatermark || result.data.original?.noWatermark;
-                    
+                     
                     if (noWatermarkUrl) {
-                        console.log('✅ 设置无水印视频URL:', noWatermarkUrl);
-                        noWatermarkLoading.classList.remove('hidden');
-                        noWatermarkVideo.src = noWatermarkUrl;
+                        console.log('✅ 无水印视频URL可用（点击播放后再加载）:', noWatermarkUrl);
                         downloadNoWatermarkBtn.href = noWatermarkUrl;
                         downloadNoWatermarkBtn.style.display = 'inline-block';
-                        noWatermarkVideo.onloadeddata = () => { noWatermarkLoading.classList.add('hidden'); };
-                        noWatermarkVideo.oncanplaythrough = () => { noWatermarkLoading.classList.add('hidden'); };
-                        noWatermarkVideo.onerror = () => { noWatermarkLoading.classList.add('hidden'); };
+                        playNoWatermarkBtn.style.display = 'inline-block';
                         noWatermarkContainer.style.display = '';
+                        playNoWatermarkBtn.onclick = () => {
+                            noWatermarkLoading.classList.remove('hidden');
+                            noWatermarkVideo.src = noWatermarkUrl;
+                            noWatermarkVideo.onloadeddata = () => { noWatermarkLoading.classList.add('hidden'); };
+                            noWatermarkVideo.oncanplaythrough = () => { noWatermarkLoading.classList.add('hidden'); };
+                            noWatermarkVideo.onerror = () => { noWatermarkLoading.classList.add('hidden'); };
+                        };
                     } else {
                         console.log('⚠️  没有获取到无水印视频');
                         noWatermarkVideo.src = '';
                         downloadNoWatermarkBtn.style.display = 'none';
+                        playNoWatermarkBtn.style.display = 'none';
                         noWatermarkLoading.classList.add('hidden');
                         noWatermarkContainer.style.display = 'none';
                     }
