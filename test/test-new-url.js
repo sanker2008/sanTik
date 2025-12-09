@@ -1,19 +1,16 @@
-const TikTokDownloader = require('./tiktok-downloader');
+const TikTokDownloader = require('../tiktok-downloader');
 const fs = require('fs');
 const path = require('path');
 
 async function testNewUrl() {
     console.log('=== TikTok New URL Test ===');
     
-    // New test URL provided by user
     const testUrl = 'https://www.tiktok.com/@mxgchx0ng/video/7539927946769747220?is_from_webapp=1&sender_device=pc';
     const outputPath = path.join(__dirname, `tiktok_new_url_test_${Date.now()}.mp4`);
     
     try {
-        // Initialize downloader
         const tiktokDownloader = new TikTokDownloader();
         
-        // Step 1: Get video URL
         console.log('\n1. Getting video URL...');
         const videoInfo = await tiktokDownloader.getVideoUrl(testUrl);
         
@@ -25,14 +22,12 @@ async function testNewUrl() {
         console.log('✅ Got no-watermark video URL:', videoInfo.noWatermark);
         console.log('✅ Got watermarked video URL:', videoInfo.watermarked);
         
-        // Step 2: Test download with enhanced proxy method
         console.log('\n2. Testing enhanced proxy download...');
         const downloadResult = await tiktokDownloader.downloadVideo(videoInfo.noWatermark, outputPath);
         
         if (downloadResult.success) {
             console.log('✅ Enhanced proxy download successful!');
             
-            // Verify file exists and has content
             if (fs.existsSync(outputPath)) {
                 const stats = fs.statSync(outputPath);
                 console.log('\n📁 File details:');
@@ -45,7 +40,7 @@ async function testNewUrl() {
                     console.log('✅ Video downloaded successfully from the new URL');
                 } else {
                     console.error('❌ Downloaded file is empty');
-                    fs.unlinkSync(outputPath); // Clean up empty file
+                    fs.unlinkSync(outputPath);
                 }
             } else {
                 console.error('❌ Downloaded file not found');
@@ -56,7 +51,6 @@ async function testNewUrl() {
             console.log('   No-watermark:', videoInfo.noWatermark);
             console.log('   Watermarked:', videoInfo.watermarked);
             
-            // Provide alternative download options
             console.log('\n💡 Alternative download methods:');
             console.log('1. Copy the extracted URL to your browser:');
             console.log(`   ${videoInfo.noWatermark}`);
@@ -68,7 +62,6 @@ async function testNewUrl() {
         console.error('❌ Test failed:', error.message);
         console.error('Error details:', error.stack);
         
-        // Clean up if file was created
         if (fs.existsSync(outputPath)) {
             fs.unlinkSync(outputPath);
         }

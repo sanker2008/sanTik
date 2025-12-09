@@ -1,9 +1,8 @@
-const TikTokDownloader = require('./tiktok-downloader');
+const TikTokDownloader = require('../tiktok-downloader');
 
 async function testTikTokDownloader() {
     console.log('=== TikTok无水印视频下载测试 ===');
     
-    // 用户提供的测试URL
     const testUrl = 'https://www.tiktok.com/@cu.cumber69/video/7578952907178134787';
     
     console.log('测试URL:', testUrl);
@@ -30,5 +29,4 @@ async function testTikTokDownloader() {
     }
 }
 
-// 运行测试
 testTikTokDownloader();

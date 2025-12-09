@@ -1,16 +1,14 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const TikTokDownloader = require('./tiktok-downloader');
+const TikTokDownloader = require('../tiktok-downloader');
 
 async function testDownload() {
     console.log('=== TikTok Video Download Test ===');
     
-    // Test URL from previous successful run
     const testUrl = 'https://www.tiktok.com/@cu.cumber69/video/7578952907178134787';
     
     try {
-        // Get video URL first
         const tiktokDownloader = new TikTokDownloader();
         const videoInfo = await tiktokDownloader.getVideoUrl(testUrl);
         
@@ -21,7 +19,6 @@ async function testDownload() {
         
         console.log('✅ Got no-watermark video URL:', videoInfo.noWatermark);
         
-        // Test download
         console.log('\n=== Testing Video Download ===');
         const outputPath = path.join(__dirname, `tiktok_test_${Date.now()}.mp4`);
         
@@ -41,7 +38,6 @@ async function testDownload() {
             console.log('Content-Type:', response.headers['content-type']);
             console.log('Content-Length:', response.headers['content-length'] ? `${(parseInt(response.headers['content-length']) / 1024 / 1024).toFixed(2)} MB` : 'Unknown');
             
-            // Save to file
             const writer = fs.createWriteStream(outputPath);
             response.data.pipe(writer);
             
@@ -53,7 +49,6 @@ async function testDownload() {
                 writer.on('error', reject);
             });
             
-            // Verify file exists and has size
             const stats = fs.statSync(outputPath);
             if (stats.size > 0) {
                 console.log(`✅ File size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);

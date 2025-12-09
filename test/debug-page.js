@@ -4,7 +4,7 @@ const fs = require('fs');
 async function debugPage() {
     console.log('Launching browser...');
     const browser = await chromium.launch({
-        headless: false, // Show browser to see what happens
+        headless: false,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const context = await browser.newContext({

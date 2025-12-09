@@ -1,12 +1,10 @@
-const TikTokDownloader = require('./tiktok-downloader');
+const TikTokDownloader = require('../tiktok-downloader');
 
 async function finalTest() {
     console.log('=== Final TikTok No-Watermark Video Extraction Test ===');
     
-    // The user's provided test URL
     const testUrls = [
-        'https://www.tiktok.com/@cu.cumber69/video/7578952907178134787',
-        // Add more test URLs if needed
+        'https://www.tiktok.com/@cu.cumber69/video/7578952907178134787'
     ];
     
     let totalTests = 0;

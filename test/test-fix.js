@@ -1,4 +1,4 @@
-const SanTik = require('./index');
+const SanTik = require('../index');
 const fs = require('fs');
 const path = require('path');
 
@@ -46,9 +46,7 @@ async function testFix() {
     } catch (error) {
         console.error('❌ Test Failed:', error);
     } finally {
-        // SanTik instance doesn't have a close method exposed directly if used like this, 
-        // but getVideoUrl closes the browser internally.
-        // If we want to be safe we can check if browser is open, but usually getVideoUrl handles it.
+        // getVideoUrl handles browser lifecycle internally
     }
 }
 
