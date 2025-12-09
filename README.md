@@ -110,18 +110,14 @@ node test/debug-page.js
   "success": true,
   "data": {
     "cover": "https://p16-sign-sg.tiktokcdn.com/...",
-    "original": {
-      "watermarked": "https://...",
-      "noWatermark": "https://..."
-    },
-    "local": {
-      "noWatermark": "/videos/no_watermark_1733734567890.mp4",
-      "watermarked": "/videos/watermarked_1733734567890.mp4"
+    "proxy": {
+      "noWatermark": "/api/proxy-download/x8s7f6d5g4h3j2k1...",
+      "watermarked": "/api/proxy-download/a1s2d3f4g5h6j7k8..."
     }
   }
 }
 ```
-*注：`local` 字段返回的是服务器下载后的本地路径，可直接在浏览器播放，无需担心防盗链。*
+*注：`proxy` 字段提供流式代理链接，通过服务器转发流量但**不占用服务器磁盘**，完美解决 403 防盗链问题，推荐前端优先使用。*
 
 ## 🧠 技术与难点（TikTok 与抖音）
 

@@ -372,6 +372,12 @@ class SanTik {
             const cookies = await this.context.cookies();
             const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
+            // 动态设置Referer
+            let referer = 'https://www.tiktok.com/';
+            if (finalUrl.includes('douyin.com')) {
+                referer = 'https://www.douyin.com/';
+            }
+
             const result = { 
                 watermarked: watermarkedUrl, 
                 noWatermark: noWatermarkUrl, 
@@ -379,7 +385,7 @@ class SanTik {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
                     'Cookie': cookieString,
-                    'Referer': 'https://www.tiktok.com/'
+                    'Referer': referer
                 }
             };
             console.log('\n--- getVideoUrl 方法执行完成 ---');
@@ -507,6 +513,76 @@ function extractUrl(text) {
     return extractedUrl;
 }
 
+// 内存缓存，用于存储视频代理信息
+const proxyCache = new Map();
+
+// 生成唯一ID
+function generateId() {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+// 代理下载路由 - 实现流式传输，不占用磁盘空间
+app.get('/api/proxy-download/:id', async (req, res) => {
+    const id = req.params.id;
+    const cacheData = proxyCache.get(id);
+    
+    if (!cacheData) {
+        return res.status(404).send('Download link expired or invalid');
+    }
+    
+    const { url, headers, filename } = cacheData;
+    const rangeHeader = req.headers['range'];
+    
+    try {
+        console.log(`\n=== 开始流式代理下载 (ID: ${id}) ===`);
+        console.log('目标URL:', url);
+        
+        // 发起请求到源服务器
+        const response = await axios({
+            url: url,
+            method: 'GET',
+            responseType: 'stream',
+            headers: {
+                ...headers,
+                ...(rangeHeader ? { Range: rangeHeader } : {})
+            },
+            timeout: 60000
+        });
+        
+        // 设置响应头
+        if (response.status) {
+            res.status(response.status);
+        }
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Type', response.headers['content-type'] || 'video/mp4');
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
+        if (response.headers['accept-ranges']) {
+            res.setHeader('Accept-Ranges', response.headers['accept-ranges']);
+        }
+        if (response.headers['content-range']) {
+            res.setHeader('Content-Range', response.headers['content-range']);
+        }
+        
+        // 管道传输：源 -> 服务器内存 -> 客户端
+        response.data.pipe(res);
+        
+        response.data.on('end', () => {
+            console.log('✅ 流式传输完成');
+        });
+        
+        response.data.on('error', (err) => {
+            console.error('❌ 流式传输中断:', err.message);
+            res.end();
+        });
+        
+    } catch (error) {
+        console.error('❌ 代理请求失败:', error.message);
+        res.status(502).send('Upstream server error');
+    }
+});
+
 // API路由
 app.post('/api/get-video', async (req, res) => {
     console.log('\n\n==================================================');
@@ -549,21 +625,16 @@ app.post('/api/get-video', async (req, res) => {
         console.log('获取结果:', videoUrls);
 
         // 配置选项：是否下载到服务器（解决前端防盗链问题）
-        const DOWNLOAD_TO_SERVER = true; // true: 下载到服务器，false: 直接返回原始URL
+        const DOWNLOAD_TO_SERVER = false; // Changed to false: 使用流式代理，不再需要下载到本地磁盘
         
-        // 准备返回数据
+        // 准备返回数据 - 只返回代理链接和封面，隐藏原始数据
         const result = {
             success: true,
             data: {
                 // 视频封面图URL
                 cover: videoUrls.cover,
-                // 原始视频URL（直接从源站获取，不占用服务器资源）
-                original: {
-                    watermarked: videoUrls.watermarked,
-                    noWatermark: videoUrls.noWatermark
-                },
-                // 本地存储的视频URL（占用服务器资源）
-                local: {
+                // 流式代理URL（前端只看到这个，看不到原始CDN链接）
+                proxy: {
                     watermarked: null,
                     noWatermark: null
                 }
@@ -573,41 +644,43 @@ app.post('/api/get-video', async (req, res) => {
         // 处理无水印视频
         if (videoUrls.noWatermark) {
             console.log('\n=== 无水印视频处理 ===');
-            console.log('📍 无水印视频原始地址:', videoUrls.noWatermark);
+            // 生成流式代理链接
+            const proxyId = generateId();
+            const filename = `tiktok_nowatermark_${Date.now()}.mp4`;
             
-            if (DOWNLOAD_TO_SERVER) {
-                console.log('✅ 下载到服务器，解决前端防盗链问题');
-                const noWatermarkFileName = `no_watermark_${Date.now()}.mp4`;
-                const noWatermarkPath = path.join(videosDir, noWatermarkFileName);
-                console.log('保存路径:', noWatermarkPath);
-                
-                // 下载视频到服务器
-                await sanTik.downloadVideo(videoUrls.noWatermark, noWatermarkPath, videoUrls.headers);
-                result.data.local.noWatermark = `/videos/${noWatermarkFileName}`;
-                console.log('✅ 无水印视频下载完成，本地访问URL:', result.data.local.noWatermark);
-            } else {
-                console.log('✅ 直接返回原始URL，不占用服务器资源');
-            }
+            // 将原始URL和Headers保存在服务器内存中，不发送给前端
+            proxyCache.set(proxyId, {
+                url: videoUrls.noWatermark,
+                headers: videoUrls.headers,
+                filename: filename
+            });
+            
+            // 缓存清理（30分钟后过期）
+            setTimeout(() => proxyCache.delete(proxyId), 30 * 60 * 1000);
+            
+            result.data.proxy.noWatermark = `/api/proxy-download/${proxyId}`;
+            console.log('✅ 生成流式代理链接:', result.data.proxy.noWatermark);
         }
 
-        // 处理有水印视频
-        if (videoUrls.watermarked) {
+        // 处理有水印视频（若与无水印相同则跳过）
+        if (videoUrls.watermarked && videoUrls.watermarked !== videoUrls.noWatermark) {
             console.log('\n=== 有水印视频处理 ===');
-            console.log('📍 有水印视频原始地址:', videoUrls.watermarked);
+            // 生成流式代理链接
+            const proxyId = generateId();
+            const filename = `tiktok_watermarked_${Date.now()}.mp4`;
             
-            if (DOWNLOAD_TO_SERVER) {
-                console.log('✅ 下载到服务器，解决前端防盗链问题');
-                const watermarkedFileName = `watermarked_${Date.now()}.mp4`;
-                const watermarkedPath = path.join(videosDir, watermarkedFileName);
-                console.log('保存路径:', watermarkedPath);
-                
-                // 下载视频到服务器
-                await sanTik.downloadVideo(videoUrls.watermarked, watermarkedPath, videoUrls.headers);
-                result.data.local.watermarked = `/videos/${watermarkedFileName}`;
-                console.log('✅ 有水印视频下载完成，本地访问URL:', result.data.local.watermarked);
-            } else {
-                console.log('✅ 直接返回原始URL，不占用服务器资源');
-            }
+            proxyCache.set(proxyId, {
+                url: videoUrls.watermarked,
+                headers: videoUrls.headers,
+                filename: filename
+            });
+            setTimeout(() => proxyCache.delete(proxyId), 30 * 60 * 1000);
+            
+            result.data.proxy.watermarked = `/api/proxy-download/${proxyId}`;
+            console.log('✅ 生成流式代理链接:', result.data.proxy.watermarked);
+        } else if (videoUrls.watermarked) {
+            console.log('\n=== 有水印视频处理 ===');
+            console.log('⚠️  检测到有水印URL与无水印URL相同，跳过有水印代理生成');
         }
 
         // 处理封面图 - 直接返回原始URL
