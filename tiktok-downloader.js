@@ -9,7 +9,7 @@ class TikTokDownloader {
         this.chromium = chromiumInstance;
         // Enhanced browser options for TikTok
         this.browserOptions = {
-            headless: true,
+            headless: true, // Changed back to true for production
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -253,10 +253,12 @@ class TikTokDownloader {
             
             // Convert to mobile URL format which is often easier to scrape
             let mobileUrl = shareUrl;
+            /*
             if (mobileUrl.includes('www.tiktok.com')) {
                 mobileUrl = mobileUrl.replace('www.tiktok.com', 'm.tiktok.com');
                 console.log('   Converted to mobile URL:', mobileUrl);
             }
+            */
             console.log('   Target URL:', mobileUrl);
             
             // Use navigation with retry mechanism
@@ -390,79 +392,101 @@ class TikTokDownloader {
                 // Get full page content
                 const pageContent = await page.content();
                 
-                // Extract all script tags content
-                const scriptContents = await page.evaluate(() => {
-                    const scripts = document.querySelectorAll('script');
-                    return Array.from(scripts).map(script => script.textContent);
-                });
-                
-                // Search for TikTok video data patterns
-                const tiktokPatterns = [
-                    // Look for __UNIVERSAL_DATA_FOR_REHYDRATION__ which is used by TikTok
-                    /__UNIVERSAL_DATA_FOR_REHYDRATION__\s*=\s*({[^;]+});/,
-                    // Look for any large JSON object that might contain video data
-                    /window\.__INITIAL_STATE__\s*=\s*({[^;]+});/,
-                    /window\.__NEXT_DATA__\s*=\s*({[^;]+});/,
-                    /window\.TikTok\s*=\s*({[^;]+});/,
-                    // Look for video URLs in any JavaScript string
-                    /https?:\/\/[^"'\s]+\.mp4[^"'\s]*/g
-                ];
-                
-                for (const pattern of tiktokPatterns) {
-                    if (pattern.global) {
-                        // Global regex for URLs
-                        const matches = pageContent.match(pattern) || [];
-                        for (const match of matches) {
-                            if (match.includes('.mp4') && !match.includes('playback')) {
-                                console.log('   🎯 Found video URL in page:', match);
-                                noWatermarkUrl = match;
-                                videoFound = true;
-                                break;
-                            }
+                // Specific check for __UNIVERSAL_DATA_FOR_REHYDRATION__ script tag which we know works
+                const universalDataMatch = pageContent.match(/<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application\/json">([\s\S]*?)<\/script>/);
+                if (universalDataMatch && universalDataMatch[1]) {
+                    try {
+                        const jsonData = JSON.parse(universalDataMatch[1]);
+                        console.log('   📦 Found __UNIVERSAL_DATA_FOR_REHYDRATION__, extracting video data...');
+                        
+                        // Direct path to video data based on analysis
+                        const videoData = jsonData?.['__DEFAULT_SCOPE__']?.['webapp.video-detail']?.itemInfo?.itemStruct?.video;
+                        
+                        if (videoData && videoData.PlayAddrStruct && videoData.PlayAddrStruct.UrlList && videoData.PlayAddrStruct.UrlList.length > 0) {
+                            const foundUrl = videoData.PlayAddrStruct.UrlList[0];
+                            console.log('   🎯 Found video URL from specific data path:', foundUrl);
+                            noWatermarkUrl = foundUrl;
+                            videoFound = true;
                         }
-                    } else {
-                        // Regex for JSON objects
-                        const match = pageContent.match(pattern);
-                        if (match && match[1]) {
-                            try {
-                                const jsonData = JSON.parse(match[1]);
-                                console.log('   📦 Found large JSON object, searching for video data...');
-                                
-                                // Recursively search for video URLs in JSON
-                                const findVideoInJson = (obj, path = []) => {
-                                    if (typeof obj !== 'object' || obj === null) return null;
-                                    
-                                    if (Array.isArray(obj)) {
-                                        for (let i = 0; i < obj.length; i++) {
-                                            const result = findVideoInJson(obj[i], [...path, i]);
-                                            if (result) return result;
-                                        }
-                                    } else {
-                                        for (const [key, value] of Object.entries(obj)) {
-                                            if (typeof value === 'string' && value.includes('.mp4')) {
-                                                console.log(`   🎯 Found video URL at path: ${path.join('.')}.${key}`);
-                                                return value;
-                                            }
-                                            const result = findVideoInJson(value, [...path, key]);
-                                            if (result) return result;
-                                        }
-                                    }
-                                    return null;
-                                };
-                                
-                                const videoUrl = findVideoInJson(jsonData);
-                                if (videoUrl) {
-                                    noWatermarkUrl = videoUrl;
+                    } catch (e) {
+                        console.log('   ⚠️ Failed to parse __UNIVERSAL_DATA_FOR_REHYDRATION__:', e.message);
+                    }
+                }
+
+                if (!videoFound) {
+                    // Extract all script tags content
+                    const scriptContents = await page.evaluate(() => {
+                        const scripts = document.querySelectorAll('script');
+                        return Array.from(scripts).map(script => script.textContent);
+                    });
+                    
+                    // Search for TikTok video data patterns
+                    const tiktokPatterns = [
+                        // Look for any large JSON object that might contain video data
+                        /window\.__INITIAL_STATE__\s*=\s*({[^;]+});/,
+                        /window\.__NEXT_DATA__\s*=\s*({[^;]+});/,
+                        /window\.TikTok\s*=\s*({[^;]+});/,
+                        // Look for video URLs in any JavaScript string
+                        /https?:\/\/[^"'\s]+\.mp4[^"'\s]*/g
+                    ];
+                    
+                    for (const pattern of tiktokPatterns) {
+                        if (pattern.global) {
+                            // Global regex for URLs
+                            const matches = pageContent.match(pattern) || [];
+                            for (const match of matches) {
+                                if (match.includes('.mp4') && !match.includes('playback')) {
+                                    console.log('   🎯 Found video URL in page:', match);
+                                    noWatermarkUrl = match;
                                     videoFound = true;
                                     break;
                                 }
-                            } catch (e) {
-                                console.log('   ⚠️  Failed to parse JSON:', e.message);
+                            }
+                        } else {
+                            // Regex for JSON objects
+                            const match = pageContent.match(pattern);
+                            if (match && match[1]) {
+                                try {
+                                    const jsonData = JSON.parse(match[1]);
+                                    console.log('   📦 Found large JSON object, searching for video data...');
+                                    
+                                    // Recursively search for video URLs in JSON
+                                    const findVideoInJson = (obj, path = []) => {
+                                        if (typeof obj !== 'object' || obj === null) return null;
+                                        
+                                        if (Array.isArray(obj)) {
+                                            for (let i = 0; i < obj.length; i++) {
+                                                const result = findVideoInJson(obj[i], [...path, i]);
+                                                if (result) return result;
+                                            }
+                                        } else {
+                                            for (const [key, value] of Object.entries(obj)) {
+                                                if (typeof value === 'string' && value.includes('.mp4')) {
+                                                    console.log(`   🎯 Found video URL at path: ${path.join('.')}.${key}`);
+                                                    return value;
+                                                }
+                                                const result = findVideoInJson(value, [...path, key]);
+                                                if (result) return result;
+                                            }
+                                        }
+                                        
+                                        return null;
+                                    };
+                                    
+                                    const foundUrl = findVideoInJson(jsonData);
+                                    if (foundUrl) {
+                                        noWatermarkUrl = foundUrl;
+                                        videoFound = true;
+                                        break;
+                                    }
+                                } catch (e) {
+                                    // Ignore JSON parse errors
+                                }
                             }
                         }
+                        
+                        if (videoFound) break;
                     }
-                    
-                    if (videoFound) break;
                 }
             }
             
@@ -515,13 +539,12 @@ class TikTokDownloader {
                     
                     // Construct possible video URLs manually
                     const possibleUrls = [
-                        `https://v16m.tiktokcdn-us.com/video/tos/useast2a/tos-useast2a-ve-0068c001/o06V3DVBpBxySpliiQLcXAINEENxfM5AoRIace?a=1988&ch=0&cr=0&dr=3&lr=all&cd=0%7C0%7C0%7C3&cv=1&br=3860&bt=1930&btag=80000&cs=0&ds=3&ft=ok6V3DVBpBxySpliiQLcXAINEENxfM5AoRIace&mime_type=video_mp4&qs=0&rc=Zf26YSNvgta5gd0bnIUKriW5SVs8OjQ6ZnpzZzczZTczNEAyLjI0LjM2Ml4zMjQyNDE1Mi8xN142NDUwYC9jNjQ0YjY2Xi8yLzE6Yw%3D%3D&l=202412081500000101900540930410017E&btag=80000`,
                         `https://api16-normal-c-alisg.tiktokv.com/aweme/v1/play/?video_id=${videoId}&ratio=720p&line=0`,
                         `https://api16-normal-c-alisg.tiktokv.com/aweme/v1/playwm/?video_id=${videoId}&ratio=720p&line=0`
                     ];
                     
                     console.log('   💡 Trying manual URL construction...');
-                    noWatermarkUrl = possibleUrls[0]; // Try the first one as default
+                    noWatermarkUrl = possibleUrls[0]; // Try the API URL as default
                     console.log('   🎯 Generated manual video URL:', noWatermarkUrl);
                     videoFound = true; // Mark as found for testing
                 }
@@ -554,9 +577,20 @@ class TikTokDownloader {
                 return { watermarked: null, noWatermark: null, cover: null };
             }
             
-            console.log('\n--- TikTokDownloader.getVideoUrl method completed ---');
-            return { watermarked: watermarkedUrl, noWatermark: noWatermarkUrl, cover: coverUrl };
+            const cookieString = currentCookies.map(c => `${c.name}=${c.value}`).join('; ');
             
+            const result = { 
+                watermarked: watermarkedUrl, 
+                noWatermark: noWatermarkUrl, 
+                cover: coverUrl,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Cookie': cookieString,
+                    'Referer': 'https://www.tiktok.com/'
+                }
+            };
+            console.log('\n--- TikTokDownloader.getVideoUrl method completed ---');
+            return result;
         } catch (error) {
             console.error('❌ TikTokDownloader error:', error.message);
             console.error('   Error details:', error.stack);

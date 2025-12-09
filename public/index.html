@@ -79,6 +79,23 @@
             white-space: nowrap;
         }
 
+        #pasteBtn {
+            padding: 15px 20px;
+            background: #f1f3f5;
+            color: #333;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        #pasteBtn:hover {
+            background: #e9ecef;
+        }
+
         #submitBtn:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
@@ -96,6 +113,10 @@
             border-radius: 8px;
             font-weight: 600;
             display: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
         }
 
         .status.success {
@@ -285,6 +306,7 @@
         <div class="input-section">
             <div class="input-group">
                 <input type="text" id="urlInput" placeholder="请输入抖音或TikTok分享链接">
+                <button id="pasteBtn" onclick="handlePaste()">粘贴</button>
                 <button id="submitBtn" onclick="handleSubmit()">获取视频</button>
             </div>
             <div id="status" class="status"></div>
@@ -466,6 +488,20 @@
                 submitBtn.disabled = false;
                 console.log('=== 处理完成 ===');
                 console.log('========================================\n');
+            }
+        }
+
+        async function handlePaste() {
+            const input = document.getElementById('urlInput');
+            const status = document.getElementById('status');
+            try {
+                const text = await navigator.clipboard.readText();
+                input.value = text;
+                status.textContent = '已粘贴内容';
+                status.className = 'status success';
+            } catch (error) {
+                status.textContent = '无法读取剪贴板，请手动粘贴';
+                status.className = 'status error';
             }
         }
 

@@ -368,10 +368,19 @@ class SanTik {
             console.log('   最终无水印URL:', noWatermarkUrl);
             console.log('   最终封面图URL:', coverUrl);
             
+            // 获取Cookies
+            const cookies = await this.context.cookies();
+            const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+
             const result = { 
                 watermarked: watermarkedUrl, 
                 noWatermark: noWatermarkUrl, 
-                cover: coverUrl 
+                cover: coverUrl,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+                    'Cookie': cookieString,
+                    'Referer': 'https://www.tiktok.com/'
+                }
             };
             console.log('\n--- getVideoUrl 方法执行完成 ---');
             return result;
@@ -381,7 +390,7 @@ class SanTik {
             console.error('   错误消息:', error.message);
             console.error('   错误堆栈:', error.stack);
             console.error('--- getVideoUrl 方法执行失败 ---');
-            return { watermarked: null, noWatermark: null, cover: null };
+            return { watermarked: null, noWatermark: null, cover: null, headers: {} };
         } finally {
             // 关闭浏览器
             console.log('8. 关闭浏览器实例...');
@@ -390,7 +399,7 @@ class SanTik {
         }
     }
 
-    async downloadVideo(videoUrl, savePath) {
+    async downloadVideo(videoUrl, savePath, headers = {}) {
         console.log('\n--- SanTik.downloadVideo 方法开始执行 ---');
         console.log('视频源URL:', videoUrl);
         console.log('保存路径:', savePath);
@@ -400,7 +409,7 @@ class SanTik {
             console.log('1. 开始发送视频下载请求...');
             const startTime = Date.now();
             
-            const response = await axios({
+            const requestConfig = {
                 url: videoUrl,
                 method: 'GET',
                 responseType: 'stream',
@@ -412,7 +421,15 @@ class SanTik {
                         console.log(`   📥 下载中: ${progressEvent.loaded} bytes`);
                     }
                 }
-            });
+            };
+
+            // Add headers if provided
+            if (headers && Object.keys(headers).length > 0) {
+                requestConfig.headers = headers;
+                console.log('   ✅ 使用自定义请求头');
+            }
+
+            const response = await axios(requestConfig);
             
             console.log('   ✅ 视频请求成功');
             console.log('   响应状态:', response.status);
@@ -565,7 +582,7 @@ app.post('/api/get-video', async (req, res) => {
                 console.log('保存路径:', noWatermarkPath);
                 
                 // 下载视频到服务器
-                await sanTik.downloadVideo(videoUrls.noWatermark, noWatermarkPath);
+                await sanTik.downloadVideo(videoUrls.noWatermark, noWatermarkPath, videoUrls.headers);
                 result.data.local.noWatermark = `/videos/${noWatermarkFileName}`;
                 console.log('✅ 无水印视频下载完成，本地访问URL:', result.data.local.noWatermark);
             } else {
@@ -585,7 +602,7 @@ app.post('/api/get-video', async (req, res) => {
                 console.log('保存路径:', watermarkedPath);
                 
                 // 下载视频到服务器
-                await sanTik.downloadVideo(videoUrls.watermarked, watermarkedPath);
+                await sanTik.downloadVideo(videoUrls.watermarked, watermarkedPath, videoUrls.headers);
                 result.data.local.watermarked = `/videos/${watermarkedFileName}`;
                 console.log('✅ 有水印视频下载完成，本地访问URL:', result.data.local.watermarked);
             } else {
